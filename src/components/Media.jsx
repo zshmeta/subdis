@@ -5,15 +5,32 @@ import { useNavigate } from 'react-router-dom';
 import { MediaContext } from './MediaContext';
 
 const Uploader = styled.div`
-  /* Your styles */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  
 `;
 
 const ButtonContainer = styled.div`
-  /* Your styles */
 `;
 
 const Button = styled.button`
-  /* Your styles */
+  margin: 5px;
+  padding: 10px 15px;
+  color: #1890ff;
+  border: 1px solid #1890ff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  min-width: 120px;
+
 `;
 
 const DownloadButton = styled(Button)`
@@ -21,7 +38,10 @@ const DownloadButton = styled(Button)`
 `;
 
 const VideoElement = styled.video`
-  /* Your styles */
+  width: 30vh;
+  height: auto;
+  max-width: 50%;
+  margin-bottom: 20px;
 `;
 
 const AudioElement = styled.audio`

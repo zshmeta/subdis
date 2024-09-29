@@ -5,6 +5,8 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
+  // disable proptype checking
+  { files: ['**/*.{js,jsx}'], rules: { 'react/prop-types': 'off' } },
   { ignores: ['dist'] },
   {
     files: ['**/*.{js,jsx}'],
