@@ -130,6 +130,7 @@ const Studio = () => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [subtitleUrl, setSubtitleUrl] = useState('');
   const [subtitleStyle, setSubtitleStyle] = useState('default');
+  const [editorContent, setEditorContent] = useState('');
   const navigate = useNavigate();
   const videoRef = useRef(null);
 
@@ -209,6 +210,12 @@ const Studio = () => {
     const newText = editor.getText().trim();
     setMainText(newText);
   }, []);
+
+  // Handle editor Content Change
+  const handleEditorChange = useCallback((content) => {
+    setEditorContent(content);
+  }, []);
+
 
   // Handle changes in individual segments
   const handleSegmentTextChange = useCallback((index, newText) => {
