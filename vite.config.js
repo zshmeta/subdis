@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/asr': {
+      '/whispapi': {
         target: 'http://localhost:9000',
         changeOrigin: true,
         secure: false,

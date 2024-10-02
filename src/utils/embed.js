@@ -1,11 +1,36 @@
 // src/utils/embed.js
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
+import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
 
-const ffmpeg = new FFmpeg({ log: true });
+const ffmpeg = createFFmpeg({ log: true });
+
+// Function to convert VTT to SRT
+const convertVTTtoSRT = (vttContent) => {
+  let srtContent = vttContent;
+
+  // Remove WEBVTT header if present
+  srtContent = srtContent.replace(/WEBVTT\s*\n/g, '');
+
+  // Replace timestamps format
+  srtContent = srtContent.replace(
+    /(\d{2}):(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2}):(\d{2})\.(\d{3})/g,
+    (match, h1, m1, s1, ms1, h2, m2, s2, ms2) => {
+      return `${h1}:${m1}:${s1},${ms1} --> ${h2}:${m2}:${s2},${ms2}`;
+    }
+  );
+
+  // Remove any STYLE blocks or metadata
+  srtContent = srtContent.replace(/^(STYLE[\s\S]*?)(?=\d+\n|\n\n)/gm, '');
+
+  // Number the subtitles properly
+  let counter = 1;
+  srtContent = srtContent.replace(/^(\d+)?$/gm, () => `${counter++}`);
+
+  return srtContent;
+};
 
 export const embedSubtitles = async (videoFile, subtitleUrl, style) => {
-  if (!ffmpeg.isLoaded()) {
+  // Check if FFmpeg is loaded
+  if (!ffmpeg.loaded) {
     await ffmpeg.load();
   }
 
@@ -17,35 +42,26 @@ export const embedSubtitles = async (videoFile, subtitleUrl, style) => {
     }
     let subtitleContent = await response.text();
 
-    // Inject basic CSS styles based on selected style
-    let styleCSS = '';
-    switch (style) {
-      case 'white':
-        styleCSS = 'color:white; font-size:20px; text-shadow: 2px 2px 4px #000;';
-        break;
-      case 'black':
-        styleCSS = 'color:black; font-size:20px; text-shadow: 2px 2px 4px #fff;';
-        break;
-      case 'yellow':
-        styleCSS = 'color:yellow; font-size:20px; text-shadow: 2px 2px 4px #000;';
-        break;
-      default:
-        styleCSS = 'color:white; font-size:16px;';
-    }
+    // Convert VTT to SRT
+    const srtContent = convertVTTtoSRT(subtitleContent);
 
-    // Add a <style> tag at the beginning of the .vtt file
-    subtitleContent = `STYLE\n::cue {\n  ${styleCSS}\n}\n\n` + subtitleContent;
-
-    const subtitleBlob = new Blob([subtitleContent], { type: 'text/vtt' });
-    const subtitleArrayBuffer = await subtitleBlob.arrayBuffer();
-    const subtitleUint8Array = new Uint8Array(subtitleArrayBuffer);
+    // Create a Uint8Array from the SRT content
+    const encoder = new TextEncoder();
+    const subtitleUint8Array = encoder.encode(srtContent);
 
     // Write files to FFmpeg FS
     ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoFile));
-    ffmpeg.FS('writeFile', 'subtitles.vtt', subtitleUint8Array);
+    ffmpeg.FS('writeFile', 'subtitles.srt', subtitleUint8Array);
 
     // Embed subtitles
-    await ffmpeg.run('-i', 'input.mp4', '-vf', `subtitles=subtitles.vtt`, '-c:a', 'copy', 'output.mp4');
+    await ffmpeg.run(
+      '-i', 'input.mp4',
+      '-i', 'subtitles.srt',
+      '-c:v', 'copy',
+      '-c:a', 'copy',
+      '-c:s', 'mov_text',
+      'output.mp4'
+    );
 
     // Read the result
     const data = ffmpeg.FS('readFile', 'output.mp4');

@@ -1,36 +1,24 @@
+/* eslint-disable react/prop-types */
 // src/components/TextEditor.jsx
-import React, { useCallback } from 'react';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
 import styled from 'styled-components';
 
-// Styled Component for Text Editor
-const EditorWrapper = styled.div`
-  .ql-editor {
-    min-height: ${(props) => props.minHeight || '200px'};
-    background-color: #ffffff;
-    border-radius: 4px;
-    padding: 10px;
-  }
+const TextArea = styled.textarea`
+  width: 100%;
+  min-height: ${(props) => props.minHeight || '200px'};
+  resize: vertical;
+  padding: 10px;
+  font-size: 16px;
 `;
 
-const TextEditor = ({ value, onChange, theme = 'snow', minHeight, ...props }) => {
-  const handleChange = useCallback((content, delta, source, editor) => {
-    if (source === 'user') {
-      onChange(content, delta, source, editor);
-    }
-  }, [onChange]);
-
+const TextEditor = ({ value, onChange, minHeight, ...props }) => {
   return (
-    <EditorWrapper minHeight={minHeight}>
-      <ReactQuill
-        value={value}
-        onChange={handleChange}
-        theme={theme}
-        {...props}
-      />
-    </EditorWrapper>
+    <TextArea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      minHeight={minHeight}
+      {...props}
+    />
   );
 };
 
-export default React.memo(TextEditor);
+export default TextEditor;

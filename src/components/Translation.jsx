@@ -1,10 +1,7 @@
-// src/components/TranslationControls.jsx
+// src/components/Translation.jsx
 import React from 'react';
 import styled from 'styled-components';
 import Button from './Button';
-import translate from 'google-translate-api-x';
-
-
 
 const LanguageContainer = styled.div`
   margin-bottom: 15px;

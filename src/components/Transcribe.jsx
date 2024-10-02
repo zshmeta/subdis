@@ -17,36 +17,55 @@ const Transcribe = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (mediaFile) {
-      // Create form data
-      const formData = new FormData();
-      formData.append('audio_file', mediaFile);
+    const transcribeMedia = async () => {
+      if (mediaFile) {
+        try {
+          const formData = new FormData();
+          formData.append('file', mediaFile); // Ensure 'file' matches the curl command
 
-      // Build URL with query parameters
-      const apiUrl = '/asr?encode=true&task=transcribe&word_timestamps=false&output=json';
+          const apiUrl = '/whispapi'; // Relative path to utilize Vite proxy
 
-      // Send POST request to /asr endpoint
-      fetch(apiUrl, {
-        method: 'POST',
-        body: formData,
-      })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Network response was not ok ' + response.statusText);
+          // Log the file being uploaded
+          console.log('Uploading file:', mediaFile);
+
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            body: formData,
+          });
+
+          // Log response status and headers
+          console.log('Response Status:', response.status);
+          console.log('Response Headers:', response.headers);
+
+          // Attempt to read response as text
+          const responseText = await response.text();
+          console.log('Response Text:', responseText);
+
+          // Attempt to parse JSON only if response is OK
+          if (response.ok) {
+            try {
+              const data = JSON.parse(responseText);
+              console.log('Transcription Data:', data);
+              setTranscriptionData(data);
+              navigate('/studio');
+            } catch (jsonError) {
+              console.error('JSON Parsing Error:', jsonError);
+              throw new Error('Failed to parse JSON response.');
+            }
+          } else {
+            // If response is not OK, throw an error with the response text
+            throw new Error(`Server Error: ${response.status} ${response.statusText} - ${responseText}`);
           }
-          return response.json();
-        })
-        .then(data => {
-          setTranscriptionData(data);
-          navigate('/studio');
-        })
-        .catch(error => {
+        } catch (error) {
           console.error('Error:', error);
           navigate('/error');
-        });
-    } else {
-      navigate('/');
-    }
+        }
+      } else {
+        navigate('/');
+      }
+    };
+
+    transcribeMedia();
   }, [mediaFile, setTranscriptionData, navigate]);
 
   return (
