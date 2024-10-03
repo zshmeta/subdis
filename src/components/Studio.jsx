@@ -72,19 +72,51 @@ const Label = styled.label`
 const StyleContainer = styled.div`
   margin-bottom: 15px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
 
   h3 {
-    margin-right: 10px;
+    margin-bottom: 10px;
     font-size: 16px;
     color: cyan;
   }
 
-  select {
-    padding: 5px 10px;
-    border-radius: 4px;
-    border: 1px solid #d9d9d9;
-    flex: 1;
+  .style-options {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+
+    label {
+      margin-right: 10px;
+      color: white;
+    }
+
+    select {
+      padding: 5px 10px;
+      border-radius: 4px;
+      border: 1px solid #d9d9d9;
+      flex: 1;
+    }
+  }
+
+  .color-pickers {
+    display: flex;
+    gap: 10px;
+
+    label {
+      display: flex;
+      flex-direction: column;
+      font-weight: bold;
+      color: white;
+    }
+
+    input[type="color"] {
+      margin-top: 5px;
+      width: 40px;
+      height: 30px;
+      border: none;
+      cursor: pointer;
+    }
   }
 `;
 
@@ -105,11 +137,13 @@ const Studio = () => {
   const [targetLanguage, setTargetLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [subtitleUrl, setSubtitleUrl] = useState('');
-  const [subtitleStyle, setSubtitleStyle] = useState('default');
+  const [subtitleStyle, setSubtitleStyle] = useState('Default'); // Updated default style
   const [vttSubtitleUrl, setVttSubtitleUrl] = useState(''); // For VTT subtitles
   const [subtitleMode, setSubtitleMode] = useState(null); // 'segment' or 'word'
   const [subtitleBlob, setSubtitleBlob] = useState(null); // For ASS subtitles
   const [vttSubtitleBlob, setVttSubtitleBlob] = useState(null); // For VTT subtitles
+  const [fontColor, setFontColor] = useState('#FFFFFF'); // White by default
+  const [backgroundColor, setBackgroundColor] = useState('#000000'); // Black by default
 
   const navigate = useNavigate();
   const videoRef = useRef(null);
@@ -239,17 +273,50 @@ const Studio = () => {
     setTargetLanguage(e.target.value);
   };
 
-  const generateASS = (segmentsToUse) => {
-    // Define the style based on subtitleStyle
-    let primaryColour = '&H00FFFFFF'; // White
-    if (subtitleStyle === 'black') {
-      primaryColour = '&H00000000'; // Black
-    } else if (subtitleStyle === 'yellow') {
-      primaryColour = '&H00FFFF00'; // Yellow
-    } else {
-      primaryColour = '&H00FFFFFF'; // Default to white
-    }
+  // Event handlers for changing font and background colors
+  const handleFontColorChange = (e) => {
+    setFontColor(e.target.value);
+    regenerateSubtitles();
+  };
 
+  const handleBackgroundColorChange = (e) => {
+    setBackgroundColor(e.target.value);
+    regenerateSubtitles();
+  };
+
+  const handleSubtitleStyleChange = (e) => {
+    setSubtitleStyle(e.target.value);
+    regenerateSubtitles();
+  };
+
+  const regenerateSubtitles = () => {
+    if (subtitleMode && segments.length > 0) {
+      if (subtitleMode === 'segment') {
+        generateASS(segments);
+        generateVTT(segments);
+      } else if (subtitleMode === 'word') {
+        generateASS(segments);
+        generateVTTByWords(segments);
+      }
+    }
+  };
+
+  // Helper function to convert HEX to ASS color format
+  const colorToASS = (hex, isBackground = false) => {
+    hex = hex.replace('#', '');
+    const r = hex.substring(0, 2);
+    const g = hex.substring(2, 4);
+    const b = hex.substring(4, 6);
+    const alpha = isBackground ? '64' : '00'; // Adjust as needed
+    return `&H${alpha}${b}${g}${r}`;
+  };
+
+  const generateASS = (segmentsToUse) => {
+    // Define colors based on user selection
+    const primaryColour = colorToASS(fontColor); // Convert HEX to ASS format
+    const backgroundColour = colorToASS(backgroundColor, true); // Convert HEX to ASS format with alpha
+
+    // Define multiple styles
     const assHeader = `
 [Script Info]
 ScriptType: v4.00+
@@ -261,13 +328,24 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,60,${primaryColour},&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
+Style: Default,Arial,60,${primaryColour},&H000000FF,&H00000000,&H${backgroundColour},0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
+Style: Bold,Arial,60,${primaryColour},&H000000FF,&H00000000,&H${backgroundColour},-1,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
     let assEvents = '';
+
+    // Determine which style to use based on selectedStyle
+    const styleMap = {
+      'Default': 'Default',
+      'Bold': 'Bold',
+      'DefaultWithBG': 'Default',
+      'BoldWithBG': 'Bold',
+    };
+
+    const chosenStyle = styleMap[subtitleStyle] || 'Default';
 
     if (subtitleMode === 'word') {
       // Word-level subtitles with grouping
@@ -288,7 +366,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const startTime = formatTimeASS(start);
           const endTime = formatTimeASS(end);
 
-          assEvents += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${text}\n`;
+          assEvents += `Dialogue: 0,${startTime},${endTime},${chosenStyle},,,0,0,0,,${text}\n`;
 
           i += 3;
         }
@@ -300,7 +378,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const end = formatTimeASS(seg.endTime);
         const text = seg.text.replace(/\r?\n/g, '\\N'); // Replace line breaks with ASS line breaks
 
-        assEvents += `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}\n`;
+        assEvents += `Dialogue: 0,${start},${end},${chosenStyle},,,0,0,0,,${text}\n`;
       });
     }
 
@@ -334,39 +412,38 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   };
 
   // Handle translation
-// Handle translation
-const handleTranslate = useCallback(async () => {
-  setIsTranslating(true);
-  try {
-    const textToTranslate = segments.map((seg) => seg.text).join('\n');
+  const handleTranslate = useCallback(async () => {
+    setIsTranslating(true);
+    try {
+      const textToTranslate = segments.map((seg) => seg.text).join('\n');
 
-    const response = await fetch('http://localhost:5000/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: textToTranslate, targetLanguage }),
-    });
+      const response = await fetch('http://localhost:5000/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: textToTranslate, targetLanguage }),
+      });
 
-    const data = await response.json();
-    if (data.error) {
-      throw new Error(data.error);
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      const translatedText = data.text;
+      const translatedSegments = translatedText.split('\n');
+      setSegments((prevSegments) =>
+        prevSegments.map((seg, idx) => ({
+          ...seg,
+          text: translatedSegments[idx] || '',
+        }))
+      );
+      const combinedTranslatedText = translatedSegments.join(' ').trim();
+      setMainText(combinedTranslatedText);
+      toast.success('Translation completed successfully!');
+    } catch (error) {
+      console.error('Translation Error:', error);
+      alert('Translation failed. Please try again.');
     }
-    const translatedText = data.text;
-    const translatedSegments = translatedText.split('\n');
-    setSegments((prevSegments) =>
-      prevSegments.map((seg, idx) => ({
-        ...seg,
-        text: translatedSegments[idx] || '',
-      }))
-    );
-    const combinedTranslatedText = translatedSegments.join(' ').trim();
-    setMainText(combinedTranslatedText);
-    toast.success('Translation completed successfully!');
-  } catch (error) {
-    console.error('Translation Error:', error);
-    alert('Translation failed. Please try again.');
-  }
-  setIsTranslating(false);
-}, [segments, targetLanguage]);
+    setIsTranslating(false);
+  }, [segments, targetLanguage]);
 
   // Generate VTT file from segments
   const generateVTT = (segmentsToUse) => {
@@ -490,6 +567,8 @@ const handleTranslate = useCallback(async () => {
       formData.append('subtitles', subtitleBlob, 'subtitles.ass');
       formData.append('format', subtitleFormat);
       formData.append('style', subtitleStyle);
+      formData.append('fontColor', fontColor);
+      formData.append('backgroundColor', backgroundColor);
 
       // Send POST request to the server
       const response = await fetch('http://localhost:5000/burn-subtitles', {
@@ -527,11 +606,6 @@ const handleTranslate = useCallback(async () => {
   // Navigate back to the home page
   const handleGoBack = () => {
     navigate('/');
-  };
-
-  // Handle subtitle style selection
-  const handleStyleChange = (e) => {
-    setSubtitleStyle(e.target.value);
   };
 
   // Clean up object URLs to prevent memory leaks
@@ -587,12 +661,37 @@ const handleTranslate = useCallback(async () => {
         />
         <StyleContainer>
           <h3>Subtitle Style</h3>
-          <select value={subtitleStyle} onChange={handleStyleChange}>
-            <option value="default">Default</option>
-            <option value="white">White</option>
-            <option value="black">Black</option>
-            <option value="yellow">Yellow</option>
-          </select>
+          <div className="style-options">
+            <label htmlFor="style-select">Select Style:</label>
+            <select
+              id="style-select"
+              value={subtitleStyle}
+              onChange={handleSubtitleStyleChange}
+            >
+              <option value="Default">Default</option>
+              <option value="Bold">Bold</option>
+              <option value="DefaultWithBG">Default with Background</option>
+              <option value="BoldWithBG">Bold with Background</option>
+            </select>
+          </div>
+          <div className="color-pickers">
+            <label>
+              Font Color:
+              <input
+                type="color"
+                value={fontColor}
+                onChange={handleFontColorChange}
+              />
+            </label>
+            <label>
+              Background Color:
+              <input
+                type="color"
+                value={backgroundColor}
+                onChange={handleBackgroundColorChange}
+              />
+            </label>
+          </div>
         </StyleContainer>
         <Label htmlFor="main-text-editor">Main Text:</Label>
         <TextEditor
