@@ -13,7 +13,7 @@ const LoaderContainer = styled.div`
 `;
 
 const Transcribe = () => {
-  const { mediaFile, setTranscriptionData } = useContext(MediaContext);
+  const { mediaFile, setTranscriptionData, apiToken } = useContext(MediaContext); // Assume you have apiToken in context
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,9 +21,13 @@ const Transcribe = () => {
       if (mediaFile) {
         try {
           const formData = new FormData();
-          formData.append('file', mediaFile); // Ensure 'file' matches the curl command
+          formData.append('file', mediaFile); // 'file' matches the server's expected field
+          formData.append('task', 'transcribe'); // Optional: specify the task
+          if (apiToken) {
+            formData.append('token', apiToken); // Optional: include API token if needed
+          }
 
-          const apiUrl = '/whispapi'; // Relative path to utilize Vite proxy
+          const apiUrl = 'http://localhost:5000/transcribe'; // Adjust based on your server's URL
 
           // Log the file being uploaded
           console.log('Uploading file:', mediaFile);
@@ -37,24 +41,15 @@ const Transcribe = () => {
           console.log('Response Status:', response.status);
           console.log('Response Headers:', response.headers);
 
-          // Attempt to read response as text
-          const responseText = await response.text();
-          console.log('Response Text:', responseText);
+          // Attempt to read response as JSON
+          const data = await response.json();
+          console.log('Transcription Data:', data);
 
-          // Attempt to parse JSON only if response is OK
           if (response.ok) {
-            try {
-              const data = JSON.parse(responseText);
-              console.log('Transcription Data:', data);
-              setTranscriptionData(data);
-              navigate('/studio');
-            } catch (jsonError) {
-              console.error('JSON Parsing Error:', jsonError);
-              throw new Error('Failed to parse JSON response.');
-            }
+            setTranscriptionData(data.transcription);
+            navigate('/studio');
           } else {
-            // If response is not OK, throw an error with the response text
-            throw new Error(`Server Error: ${response.status} ${response.statusText} - ${responseText}`);
+            throw new Error(data.error || 'Transcription failed.');
           }
         } catch (error) {
           console.error('Error:', error);
@@ -66,7 +61,7 @@ const Transcribe = () => {
     };
 
     transcribeMedia();
-  }, [mediaFile, setTranscriptionData, navigate]);
+  }, [mediaFile, setTranscriptionData, navigate, apiToken]);
 
   return (
     <LoaderContainer>

@@ -24,6 +24,97 @@ if (!fs.existsSync(outputsDir)) {
   fs.mkdirSync(outputsDir);
 }
 
+
+// Helper function to determine MIME type based on file extension
+function getMimeType(extension) {
+  const mimeTypes = {
+    '.wav': 'audio/wav',
+    '.mp3': 'audio/mpeg',
+    '.m4a': 'audio/mp4',
+    '.flac': 'audio/flac',
+    '.ogg': 'audio/ogg',
+    // Add more MIME types if needed
+  };
+  return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
+}
+
+// Transcription Endpoint
+app.post('/transcribe', upload.single('file'), async (req, res) => {
+  const file = req.file;
+  const task = req.body.task || 'transcribe';
+  const token = req.body.token || process.env.HF_API_TOKEN; // Use environment variable if provided
+
+  if (!file) {
+    return res.status(400).json({ error: 'Audio/video file is required.' });
+  }
+
+  try {
+    // Prepare connection options
+    const connectOptions = {};
+    if (token) {
+      connectOptions.hf_token = token;
+    }
+
+    // Connect to the Gradio Space
+    const client = await Client.connect('hf-audio/whisper-large-v3-turbo', connectOptions);
+
+    // Read the file as a buffer
+    const fileBuffer = fs.readFileSync(file.path);
+    const fileName = path.basename(file.path);
+    const fileExtension = path.extname(file.path).toLowerCase();
+
+    // Determine MIME type
+    const mimeType = getMimeType(fileExtension);
+
+    // Create a File instance
+    let gradioFile;
+    if (typeof File !== 'undefined') {
+      // Node.js v18+
+      gradioFile = new File([fileBuffer], fileName, { type: mimeType });
+    } else {
+      // For Node.js versions below 18
+      const { File: FetchBlobFile } = await import('fetch-blob/file.js');
+      gradioFile = new FetchBlobFile([fileBuffer], fileName, { type: mimeType });
+    }
+
+    // Prepare input data
+    const inputs = {
+      inputs: gradioFile,
+      task: task,
+    };
+
+    // Make the prediction using the /predict endpoint
+    const result = await client.predict('/predict', inputs);
+
+    // Handle the response
+    let transcription;
+    if (Array.isArray(result.data)) {
+      // If the response is an array, assume it's from /predict_1 or similar
+      transcription = result.data[1]; // Assuming second element is transcription
+    } else {
+      // Assume a single transcription string
+      transcription = result.data;
+    }
+
+    // Send the transcription back to the client
+    res.json({ transcription });
+
+  } catch (error) {
+    console.error('Transcription Error:', error);
+    if (error.response) {
+      console.error(`Status Code: ${error.response.status}`);
+      console.error('Response Data:', error.response.data);
+    }
+    res.status(500).json({ error: 'Transcription failed. Please try again later.' });
+  } finally {
+    // Clean up the uploaded file
+    fs.unlink(file.path, (err) => {
+      if (err) console.error('Error deleting uploaded file:', err);
+    });
+  }
+});
+
+
 // Helper function to determine output container
 const getOutputContainer = (format) => {
   if (format === 'ass') {
